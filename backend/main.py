@@ -269,7 +269,7 @@ async def process_stream() -> None:
 
             if detected:
                 cv2.putText(
-                    frame, "X POSE!", (10, 50),
+                    frame, "Pose detected!", (10, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), 3,
                 )
 
