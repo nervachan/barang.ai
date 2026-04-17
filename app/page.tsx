@@ -1,65 +1,123 @@
-import Image from "next/image";
+"use client"
+
+import { useEffect, useRef, useState, useCallback } from "react"
+
+const BACKEND = "http://localhost:8000"
+const WS_URL = "ws://localhost:8000/ws"
+
+function playAlertSound() {
+  const ctx = new AudioContext()
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+
+  osc.type = "square"
+  osc.frequency.setValueAtTime(880, ctx.currentTime)
+  osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15)
+  osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3)
+
+  gain.gain.setValueAtTime(0.25, ctx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+
+  osc.start(ctx.currentTime)
+  osc.stop(ctx.currentTime + 0.5)
+}
 
 export default function Home() {
+  const [connected, setConnected] = useState(false)
+  const [detected, setDetected] = useState(false)
+  const [alertCount, setAlertCount] = useState(0)
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
+
+  const handleDetection = useCallback(() => {
+    playAlertSound()
+    setAlertCount((n: number) => n + 1)
+    setDetected(true)
+    if (flashTimer.current) clearTimeout(flashTimer.current)
+    flashTimer.current = setTimeout(() => setDetected(false), 2500)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    function connect() {
+      if (cancelled) return
+      const ws = new WebSocket(WS_URL)
+      wsRef.current = ws
+
+      ws.onopen = () => setConnected(true)
+      ws.onclose = () => {
+        setConnected(false)
+        setTimeout(connect, 3000)
+      }
+      ws.onerror = () => ws.close()
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data)
+        if (data.type === "x_pose") handleDetection()
+      }
+    }
+
+    connect()
+
+    return () => {
+      cancelled = true
+      wsRef.current?.close()
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+    }
+  }, [handleDetection])
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center gap-6 p-6">
+      <header className="flex flex-col items-center gap-1">
+        <h1 className="text-2xl font-bold tracking-tight">Automated Peril Alert</h1>
+        <div className="flex items-center gap-2 text-sm">
+          <span
+            className={`h-2 w-2 rounded-full transition-colors ${
+              connected ? "bg-green-400" : "bg-red-500"
+            }`}
+          />
+          <span className="text-zinc-400">
+            {connected ? "Backend connected" : "Reconnecting…"}
+          </span>
+        </div>
+      </header>
+
+      <div
+        className={`relative w-full max-w-3xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden border-2 transition-colors duration-300 ${
+          detected ? "border-green-400" : "border-zinc-800"
+        }`}
+      >
+        {/* MJPEG stream — plain <img> required; next/image doesn't support streaming sources */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${BACKEND}/video_feed`}
+          alt="CCTV feed"
+          className="w-full h-full object-contain"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {detected && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="bg-green-500 text-black font-black text-3xl px-8 py-4 rounded-2xl animate-pulse shadow-2xl">
+              Pose Detected!
+            </span>
+          </div>
+        )}
+      </div>
+
+      <p className="text-zinc-500 text-sm">
+        Alerts triggered:{" "}
+        <span className="font-mono text-white">{alertCount}</span>
+      </p>
+
+      <p className="text-xs text-zinc-600 max-w-sm text-center">
+        Raise both arms and cross your wrists above your shoulders to trigger the
+        alert. Set{" "}
+        <code className="bg-zinc-800 px-1 rounded">RTSP_URL</code> on the
+        backend to use a camera stream.
+      </p>
     </div>
-  );
+  )
 }
