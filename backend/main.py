@@ -114,7 +114,7 @@ def download_model() -> None:
 
 def check_x_pose(landmarks: list[Landmark]) -> bool:
     """
-    Detect crossed wrists anywhere on the body.
+    Detect crossed arms/wrists.
     Uses hysteresis to prevent flickering.
     """
     global consecutive_x_pose_frames
@@ -123,18 +123,43 @@ def check_x_pose(landmarks: list[Landmark]) -> bool:
     rw = landmarks[RIGHT_WRIST]
     ls = landmarks[LEFT_SHOULDER]
     rs = landmarks[RIGHT_SHOULDER]
+    le = landmarks[13]  # LEFT_ELBOW
+    re = landmarks[14]  # RIGHT_ELBOW
 
-    # Require good visibility of both wrists and shoulders
-    if min(lw.visibility, rw.visibility, ls.visibility, rs.visibility) < 0.5:
+    # Lower visibility threshold for wrists since they get occluded when crossed
+    wrist_vis = min(lw.visibility, rw.visibility)
+    shoulder_vis = min(ls.visibility, rs.visibility)
+    
+    if wrist_vis < 0.3 or shoulder_vis < 0.4:
         consecutive_x_pose_frames = 0
         return False
 
-    # Arms crossed: in image space for a front-facing person,
-    # the anatomical left wrist normally sits at higher x (right side of image).
-    # When arms form an X, left wrist crosses to lower x than right wrist.
-    # Add hysteresis margin to prevent flickering at the boundary
+    # Calculate shoulder width for relative measurements
+    shoulder_width = abs(rs.x - ls.x)
+    if shoulder_width < 0.05:  # Invalid pose data
+        consecutive_x_pose_frames = 0
+        return False
+
+    # Method 1: Check if wrists have crossed over to opposite sides
+    # In image space for a front-facing person:
+    # - Left body parts normally appear on RIGHT of image (higher x)
+    # - Right body parts normally appear on LEFT of image (lower x)
+    # When arms cross, these positions swap
     margin = X_POSE_MARGIN if consecutive_x_pose_frames > 0 else 0
-    arms_crossed = lw.x < (rw.x - margin)
+    wrists_crossed = lw.x < (rw.x - margin)
+    
+    # Method 2: Check wrist proximity (crossed arms bring wrists close together)
+    wrist_distance = abs(lw.x - rw.x)
+    wrists_close = wrist_distance < (shoulder_width * 0.5)
+    
+    # Method 3: Check if elbows are crossed too (stronger signal)
+    elbows_crossed = le.x < re.x if le.visibility > 0.3 and re.visibility > 0.3 else False
+    
+    # Method 4: Check vertical proximity (crossed arms are usually at similar height)
+    wrists_similar_height = abs(lw.y - rw.y) < 0.15
+    
+    # Combine signals: wrists crossed OR (wrists close together AND at similar height)
+    arms_crossed = wrists_crossed or (wrists_close and wrists_similar_height and elbows_crossed)
 
     if arms_crossed:
         consecutive_x_pose_frames += 1

@@ -72,7 +72,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">X-Pose Detector</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Automated Peril Alert</h1>
         <div className="flex items-center gap-2 text-sm">
           <span
             className={`h-2 w-2 rounded-full transition-colors ${
@@ -101,7 +101,7 @@ export default function Home() {
         {detected && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <span className="bg-green-500 text-black font-black text-3xl px-8 py-4 rounded-2xl animate-pulse shadow-2xl">
-              X POSE DETECTED
+              Pose Detected!
             </span>
           </div>
         )}
