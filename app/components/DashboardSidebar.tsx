@@ -42,12 +42,12 @@ export default function DashboardSidebar({ active }: DashboardSidebarProps) {
           Cameras
         </Link>
 
-        <button
-          type="button"
-          className={`flex w-full items-center rounded-xl px-3 py-2.5 cursor-default ${itemClass("analytics")}`}
+        <Link
+          href="/analytics"
+          className={`flex w-full items-center rounded-xl px-3 py-2.5 ${itemClass("analytics")}`}
         >
           Analytics
-        </button>
+        </Link>
       </nav>
 
       <div className="mt-auto space-y-3">
